@@ -81,12 +81,42 @@ apply_cert() {
     wget -N --no-check-certificate https://raw.githubusercontent.com/CCCOrz/auto-acme/main/main.sh && bash main.sh
 }
 
+set_systemd() {
+    cat > /lib/systemd/system/tuic.service << EOF
+    [Unit]
+    Description=Delicately-TUICed high-performance proxy built on top of the QUIC protocol
+    Documentation=https://github.com/EAimTY/tuic
+    After=network.target
+
+    [Service]
+    User=root
+    WorkingDirectory=/opt/tuic
+    ExecStart=/opt/tuic/tuic-server -c config.json
+    Restart=on-failure
+    RestartPreventExitStatus=1
+    RestartSec=5
+
+    [Install]
+    WantedBy=multi-user.target
+EOF
+}
+
 install() {
     ARCH=$(uname -m)
-    mkdir /opt/tuic && cd /opt/tuic
+    if [[ -e "/opt/tuic" ]]; then
+        read -rp "是否重新安装tuic ? [y/n]" input
+        case "$input" in
+            y) uninstall ;;
+            *) exit 1 ;;
+        esac
+    fi
+    mkdir /opt/tuic
+    cd /opt/tuic
+    green "当前位置：$(pwd)"
     green "下载tuic文件"
     URL="https://github.com/EAimTY/tuic/releases/download/tuic-server-1.0.0-beta0/tuic-server-1.0.0-beta0-$ARCH-unknown-linux-gnu"
-    wget -N --no-check-certificate -O tuic-server
+    yellow $URL
+    wget -N --no-check-certificate $URL -O tuic-server
     chmod +x tuic-server
     cat > config.json << EOF
     {
@@ -107,19 +137,24 @@ install() {
         "gc_lifetime": "15s",
         "log_level": "warn"
     }
-    EOF
+EOF
     cat /root/cert/cert.crt > /opt/tuic/fullchain.pem
     cat /root/cert/private.key > /opt/tuic/privkey.pem
-    ./tuic-server -c config.json
     green "已安装tuic"
     openssl x509 -noout -fingerprint -sha256 -inform pem -in /opt/tuic/fullchain.pem
-    green "已锁定证书"
+    yellow "已锁定证书"
+    
+    set_systemd
+    systemctl enable --now tuic.service
+    systemctl restart tuic
+    systemctl status tuic
+    yellow "将下面这段复制到客户端 : Surge[Proxy]"
     green "TUIC V5 = tuic, $(curl -s ipinfo.io/ip) , 52408, skip-cert-verify=true, sni=your.com, uuid=8e21e704-9ac8-4fb8-bef1-6c9d7d7e390b, alpn=h3, password=RnJ5BfJ3, version=5"
 }
 
 uninstall() {
-    rm -rf /opt/tuic
-    green "已卸载tuic"
+    systemctl stop tuic && systemctl disable --now tuic.service && rm -rf /opt/tuic
+    red "已停止并卸载tuic"
 }
 
 menu() {
