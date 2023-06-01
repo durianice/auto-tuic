@@ -88,7 +88,7 @@ install() {
     URL="https://github.com/EAimTY/tuic/releases/download/tuic-server-1.0.0-beta0/tuic-server-1.0.0-beta0-$ARCH-unknown-linux-gnu"
     wget -N --no-check-certificate -O tuic-server
     chmod +x tuic-server
-    cat << EOF >> config.json
+    cat > config.json << EOF
     {
         "server": "[::]:52408",
         "users": {
