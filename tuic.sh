@@ -208,6 +208,8 @@ run() {
         return 0
     else
         error "tuic启动失败"
+        warning "======== ERROR INFO ========="
+        systemctl status tuic
         return 1
     fi
 }
