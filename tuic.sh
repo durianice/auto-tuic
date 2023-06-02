@@ -135,19 +135,19 @@ find_unused_port() {
 
 
 create_conf() {
-    read -rp "请选择证书链位置(回车默认/root/cert/cert.crt)：" crt_input
+    read -rp "请输入证书链位置(回车默认/root/cert/cert.crt)：" crt_input
     if [[ -n ${crt_input} ]]; then
         fullchain=${crt_input}
     fi
 
-    read -rp "请选择证书私钥位置(回车默认/root/cert/private.key)：" key_input
+    read -rp "请输入证书私钥位置(回车默认/root/cert/private.key)：" key_input
     if [[ -n ${key_input} ]]; then
         private_key=${key_input}
     fi
     if [[ ! -r "${fullchain}" || ! -r "${private_key}" ]]; then
         ### Acme shell modified from https://github.com/Misaka-blog/acme-script/tree/main
         ### thanks!!!
-        error "证书不存在，请执行 [1]申请证书"
+        error "证书不存在，请先执行 [1]申请证书"
         back2menu
     fi
     
@@ -158,16 +158,15 @@ create_conf() {
 
     read -rp "请输入解析至本机的域名：" domain_input
     if [[ -z ${domain_input} ]]; then
-        error "未输入域名，请手动修改客户端配置中的[yourdomain]，否则无法正常使用"
+        warning "未输入域名，请手动修改客户端配置中的[yourdomain]，否则无法正常使用"
         domain_input="yourdomain"
     fi
     read -rp "请为tuic分配端口：" port_input
     if [[ -z ${port_input} ]]; then
-        error "未输入端口，默认分配随机端口"
+        warning "未输入端口，默认分配随机端口"
         port_input=$(find_unused_port)
     fi
-    str=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in "${workspace}/fullchain.pem")
-    fingerprint=$(echo "$str" | cut -d '=' -f 2)
+    
     uuid=$(cat /proc/sys/kernel/random/uuid)
     password=$(generate_random_password 10)
     cat > config.json << EOF
@@ -190,9 +189,15 @@ create_conf() {
         "log_level": "WARN"
     }
 EOF
-
-    warning "将以下内容复制到Surge[Proxy]"
-    success "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, server-cert-fingerprint=${fingerprint}, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5"
+    read -rp "是否启用证书指纹(y/n)默认否：" add_fingerprint
+    if [[ ${add_fingerprint} -eq 'y' ]]; then
+        str=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in "${workspace}/fullchain.pem")
+        fingerprint=$(echo "$str" | cut -d '=' -f 2)
+        warning "已添加证书指纹"
+        echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, server-cert-fingerprint=${fingerprint}, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
+    else
+        echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, skip-cert-verify=true, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
+    fi
 }
 
 uninstall() {
@@ -207,6 +212,8 @@ run() {
     systemctl enable --now tuic.service
     if systemctl status tuic | grep -q "active"; then
         success "tuic启动成功"
+        warning "[Proxy] 配置"
+        success $(cat client.txt)
         return 0
     else
         error "tuic启动失败"
@@ -218,9 +225,12 @@ run() {
 
 stop() {
     if [[ ! -e "$service" ]]; then
-        error "tuic未安装" && back2menu
+        error "tuic未安装" 
+    else
+        systemctl stop tuic
+        info "tuic已停止"
     fi
-    systemctl stop tuic
+    back2menu
 }
 
 install() {
