@@ -76,7 +76,7 @@ brefore_install() {
     if [[ ! $SYSTEM == "CentOS" ]]; then
         ${PACKAGE_UPDATE[int]}
     fi
-    ${PACKAGE_INSTALL[int]} curl wget sudo socat openssl
+    ${PACKAGE_INSTALL[int]} curl wget sudo socat openssl certbot
     if [[ $SYSTEM == "CentOS" ]]; then
         ${PACKAGE_INSTALL[int]} cronie
         systemctl start crond
@@ -88,8 +88,39 @@ brefore_install() {
     fi
 }
 
+cert_update() {
+    cat > /etc/letsencrypt/renewal-hooks/post/tuic.sh << EOF
+    #!/bin/bash
+    cat /etc/letsencrypt/live/$1/fullchain.pem > "${workspace}/fullchain.pem"
+    cat /etc/letsencrypt/live/$1/privkey.pem > "${workspace}/private_key.pem" 
+    systemctl restart tuic.service
+EOF
+    chmod +x /etc/letsencrypt/renewal-hooks/post/tuic.sh
+    systemctl daemon-reload
+    certbot renew --cert-name $1 --dry-run
+}
+
 apply_cert() {
-    wget -N --no-check-certificate https://raw.githubusercontent.com/CCCOrz/auto-acme/main/acme.sh && bash acme.sh
+    if [[ -e "${workspace}/fullchain.pem" || -e "${workspace}/private_key.pem" ]]; then
+        warning "已有证书，跳过申请"
+        return 0
+    fi
+    warning "请确保域名正确解析到此主机"
+    warning "正在为您申请证书，您稍等..."
+    certbot certonly \
+    --standalone \
+    --agree-tos \
+    --no-eff-email \
+    --email $1 \
+    -d $2
+    if [[ -r "/etc/letsencrypt/live/$2/fullchain.pem" && -r "/etc/letsencrypt/live/$2/privkey.pem" ]]; then
+        cat /etc/letsencrypt/live/$2/fullchain.pem > "${workspace}/fullchain.pem"
+        cat /etc/letsencrypt/live/$2/privkey.pem > "${workspace}/private_key.pem" 
+        success "证书申请成功"
+        cert_update $2
+    else
+        error "证书申请失败" && exit 1
+    fi
 }
 
 create_systemd() {
@@ -135,36 +166,19 @@ find_unused_port() {
 
 
 create_conf() {
-    read -rp "请输入证书链位置(回车默认/root/cert/cert.crt)：" crt_input
-    if [[ -n ${crt_input} ]]; then
-        fullchain=${crt_input}
+    read -rp "请输入注册邮箱(必填): " email_input
+    if [[ -z $email_input ]]; then
+        error "邮箱不能为空" && exit 1
     fi
-
-    read -rp "请输入证书私钥位置(回车默认/root/cert/private.key)：" key_input
-    if [[ -n ${key_input} ]]; then
-        private_key=${key_input}
-    fi
-    if [[ ! -r "${fullchain}" || ! -r "${private_key}" ]]; then
-        ### Acme shell modified from https://github.com/Misaka-blog/acme-script/tree/main
-        ### thanks!!!
-        error "证书不存在，请先执行 [1]申请证书"
-        back2menu
-    fi
-    
-    chmod +x "$fullchain"
-    chmod +x "$private_key"
-    cat "${fullchain}" > "${workspace}/fullchain.pem"
-    cat "${private_key}" > "${workspace}/private_key.pem"
-
-    read -rp "请输入解析至本机的域名：" domain_input
+    read -rp "请输入域名(必填)：" domain_input
     if [[ -z ${domain_input} ]]; then
-        warning "未输入域名，请手动修改客户端配置中的[yourdomain]，否则无法正常使用"
-        domain_input="yourdomain"
+        error "域名不能为空" && exit 1
     fi
-    read -rp "请为tuic分配端口：" port_input
+    apply_cert $email_input $domain_input
+    read -rp "请为tuic分配端口(留空随机分配)：" port_input
     if [[ -z ${port_input} ]]; then
-        warning "未输入端口，默认分配随机端口"
         port_input=$(find_unused_port)
+        warning "使用随机端口 : $(find_unused_port)"
     fi
     
     uuid=$(cat /proc/sys/kernel/random/uuid)
@@ -189,14 +203,18 @@ create_conf() {
         "log_level": "WARN"
     }
 EOF
-    read -rp "是否启用证书指纹(y/n)默认否：" not_fingerprint
+    read -rp "是否启用证书指纹？默认否(y/n)：" not_fingerprint
     if [[ -z ${not_fingerprint} ]]; then
         echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, skip-cert-verify=true, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
     else
         str=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in "${workspace}/fullchain.pem")
         fingerprint=$(echo "$str" | cut -d '=' -f 2)
-        warning "已添加证书指纹"
-        echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, server-cert-fingerprint=${fingerprint}, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
+        if [[ -n ${fingerprint} ]]; then
+            warning "已添加证书指纹"
+            echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, server-cert-fingerprint=${fingerprint}, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
+        else 
+            error "证书指纹生成失败，请检查证书有效性" && exit 1
+        fi
     fi
 }
 
@@ -213,7 +231,10 @@ run() {
     if systemctl status tuic | grep -q "active"; then
         success "tuic启动成功"
         warning "[Proxy] 配置"
+        info "----------------------"
         cat "${workspace}/client.txt"
+        info "----------------------"
+        warning "客户端配置目录：${workspace}/client.txt"
         return 0
     else
         error "tuic启动失败"
@@ -234,6 +255,7 @@ stop() {
 }
 
 install() {
+    brefore_install
     ARCH=$(uname -m)
     if [[ -d "${workspace}" ]]; then
         read -rp "是否重新安装tuic ? [y/n]" input
@@ -257,21 +279,19 @@ install() {
 
 menu() {
     echo ""
-    echo -e " ${GREEN}1.${PLAIN} 申请证书(如果没有)"
-    echo -e " ${GREEN}2.${PLAIN} 安装TUIC"
-    echo -e " ${GREEN}3.${PLAIN} 运行TUIC"
-    echo -e " ${GREEN}4.${PLAIN} 停止TUIC"
-    echo -e " ${GREEN}5.${PLAIN} ${RED}卸载TUIC${PLAIN}"
+    echo -e " ${GREEN}1.${PLAIN} 安装TUIC"
+    echo -e " ${GREEN}2.${PLAIN} 运行TUIC"
+    echo -e " ${GREEN}3.${PLAIN} 停止TUIC"
+    echo -e " ${GREEN}4.${PLAIN} ${RED}卸载TUIC${PLAIN}"
     echo " -------------"
     echo -e " ${GREEN}0.${PLAIN} 退出脚本"
     echo ""
     read -rp "请选择: " NumberInput
     case "$NumberInput" in
-        1) apply_cert ;;
-        2) install ;;
-        3) run ;;
-        4) stop ;;
-        5) uninstall ;;
+        1) install ;;
+        2) run ;;
+        3) stop ;;
+        4) uninstall ;;
         *) exit 1 ;;
     esac
 }
