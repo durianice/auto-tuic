@@ -164,7 +164,7 @@ create_conf() {
     read -rp "请为tuic分配端口：" port_input
     if [[ -z ${port_input} ]]; then
         error "未输入端口，默认分配随机端口"
-        port_input=$(find_unused_port)
+        port_input=$(uuidgen)
     fi
     str=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in "${workspace}/fullchain.pem")
     fingerprint=$(echo "$str" | cut -d '=' -f 2)
