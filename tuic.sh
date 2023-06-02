@@ -156,7 +156,7 @@ create_conf() {
     cat "${fullchain}" > "${workspace}/fullchain.pem"
     cat "${private_key}" > "${workspace}/private_key.pem"
 
-    read -rp "请输入解析至本机的域名(www.example.com)：" domain_input
+    read -rp "请输入解析至本机的域名：" domain_input
     if [[ -z ${domain_input} ]]; then
         error "未输入域名，请手动修改客户端配置中的[yourdomain]，否则无法正常使用"
         domain_input="yourdomain"
