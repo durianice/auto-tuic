@@ -124,9 +124,6 @@ apply_cert() {
 }
 
 create_systemd() {
-    if [[ -w "$service" ]]; then
-        return
-    fi
     cat > $service << EOF
     [Unit]
     Description=Delicately-TUICed high-performance proxy built on top of the QUIC protocol
