@@ -200,7 +200,7 @@ create_conf() {
         "log_level": "WARN"
     }
 EOF
-    read -rp "是否启用证书指纹？默认否(y/n)：" not_fingerprint
+    read -rp "是否启用证书指纹？(y/[n])：" not_fingerprint
     if [[ -z ${not_fingerprint} ]]; then
         echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, skip-cert-verify=true, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
     else
@@ -255,7 +255,7 @@ install() {
     brefore_install
     ARCH=$(uname -m)
     if [[ -d "${workspace}" ]]; then
-        read -rp "是否重新安装tuic ? [y/n]" input
+        read -rp "是否重新安装tuic ? [y/[n]]" input
         case "$input" in
             y)  uninstall ;;
             *)  back2menu ;;
