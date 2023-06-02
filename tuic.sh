@@ -257,7 +257,7 @@ install() {
 
 menu() {
     echo ""
-    echo -e " ${GREEN}1.${PLAIN} 申请证书"
+    echo -e " ${GREEN}1.${PLAIN} 申请证书(如果没有)"
     echo -e " ${GREEN}2.${PLAIN} 安装TUIC"
     echo -e " ${GREEN}3.${PLAIN} 运行TUIC"
     echo -e " ${GREEN}4.${PLAIN} 停止TUIC"
