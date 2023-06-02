@@ -145,6 +145,8 @@ create_conf() {
         private_key=key_input
     fi
     if [[ ! -r "${fullchain}" || ! -r "${private_key}" ]]; then
+        ### Acme shell modified from https://github.com/Misaka-blog/acme-script/tree/main
+        ### thanks!!!
         error "证书不存在，请执行 [1]申请证书"
         back2menu
     fi
