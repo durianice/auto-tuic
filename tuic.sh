@@ -168,7 +168,7 @@ create_conf() {
     fi
     str=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in "${workspace}/fullchain.pem")
     fingerprint=$(echo "$str" | cut -d '=' -f 2)
-    uuid=$(uuidgen)
+    uuid=$(openssl rand -hex 16)
     password=$(generate_random_password 10)
     cat > config.json << EOF
     {
