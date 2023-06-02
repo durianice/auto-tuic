@@ -189,14 +189,14 @@ create_conf() {
         "log_level": "WARN"
     }
 EOF
-    read -rp "是否启用证书指纹(y/n)默认否：" add_fingerprint
-    if [[ ${add_fingerprint} -eq 'y' ]]; then
+    read -rp "是否启用证书指纹(y/n)默认否：" not_fingerprint
+    if [[ -z ${not_fingerprint} ]]; then
+        echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, skip-cert-verify=true, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
+    else
         str=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in "${workspace}/fullchain.pem")
         fingerprint=$(echo "$str" | cut -d '=' -f 2)
         warning "已添加证书指纹"
         echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, server-cert-fingerprint=${fingerprint}, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
-    else
-        echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, skip-cert-verify=true, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
     fi
 }
 
@@ -213,7 +213,7 @@ run() {
     if systemctl status tuic | grep -q "active"; then
         success "tuic启动成功"
         warning "[Proxy] 配置"
-        success $(cat client.txt)
+        cat "${workspace}/client.txt"
         return 0
     else
         error "tuic启动失败"
