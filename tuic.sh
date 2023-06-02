@@ -178,7 +178,7 @@ create_conf() {
     read -rp "请为tuic分配端口(留空随机分配)：" port_input
     if [[ -z ${port_input} ]]; then
         port_input=$(find_unused_port)
-        warning "使用随机端口 : $(find_unused_port)"
+        warning "使用随机端口 : $port_input"
     fi
     
     uuid=$(cat /proc/sys/kernel/random/uuid)
