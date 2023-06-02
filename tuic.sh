@@ -137,12 +137,12 @@ find_unused_port() {
 create_conf() {
     read -rp "请选择证书链位置(回车默认/root/cert/cert.crt)：" crt_input
     if [[ -n ${crt_input} ]]; then
-        fullchain=crt_input
+        fullchain=${crt_input}
     fi
 
     read -rp "请选择证书私钥位置(回车默认/root/cert/private.key)：" key_input
     if [[ -n ${key_input} ]]; then
-        private_key=key_input
+        private_key=${key_input}
     fi
     if [[ ! -r "${fullchain}" || ! -r "${private_key}" ]]; then
         ### Acme shell modified from https://github.com/Misaka-blog/acme-script/tree/main
