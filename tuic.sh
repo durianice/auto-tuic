@@ -146,12 +146,13 @@ apply_cert() {
 }
 
 check_cert() {
-    if [[ -r "/etc/letsencrypt/live/$2*/fullchain.pem" && -r "/etc/letsencrypt/live/$2*/privkey.pem" ]]; then
+    exit_cert=$(cat /etc/letsencrypt/live/$2*/fullchain.pem | grep -i -c "cert")
+    exit_key=$(cat /etc/letsencrypt/live/$2*/privkey.pem | grep -i -c "key")
+    if [[ ${exit_cert} -ne 0 || ${exit_key} -ne 0 ]]; then
         read -rp "是否撤销并删除已有证书？(y/[n])：" del_cert
         if [[ ${del_cert} == [yY] ]]; then
             warning "正在撤销$2的证书..."
-            certbot revoke --cert-name $2 --delete-after-revoke
-            rm -r /etc/letsencrypt/live/$2*/
+            certbot revoke --cert-path /etc/letsencrypt/live/$2*/cert.pem
             apply_cert $1 $2
         else 
             info "使用已有证书"
