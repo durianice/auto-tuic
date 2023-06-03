@@ -143,13 +143,18 @@ apply_cert() {
     --no-eff-email \
     --email $1 \
     -d $2
+    exit_cert=$(cat /etc/letsencrypt/live/$2*/fullchain.pem | grep -i -c "cert")
+    exit_key=$(cat /etc/letsencrypt/live/$2*/privkey.pem | grep -i -c "key")
+    if [[ ${exit_cert} -eq 0 || ${exit_key} -eq 0 ]]; then
+        error "证书申请失败" && exit 1
+    fi
 }
 
 check_cert() {
     exit_cert=$(cat /etc/letsencrypt/live/$2*/fullchain.pem | grep -i -c "cert")
     exit_key=$(cat /etc/letsencrypt/live/$2*/privkey.pem | grep -i -c "key")
     if [[ ${exit_cert} -ne 0 || ${exit_key} -ne 0 ]]; then
-        read -rp "是否撤销并删除已有证书？(y/[n])：" del_cert
+        read -rp "是否撤销已有证书？(y/[n])：" del_cert
         if [[ ${del_cert} == [yY] ]]; then
             warning "正在撤销$2的证书..."
             certbot revoke --cert-path /etc/letsencrypt/live/$2*/cert.pem
