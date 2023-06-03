@@ -151,7 +151,7 @@ check_cert() {
         if [[ ${del_cert} == [yY] ]]; then
             warning "正在撤销$2的证书..."
             certbot revoke --cert-name $2 --delete-after-revoke
-            rm /etc/letsencrypt/live/$2/fullchain.pem /etc/letsencrypt/live/$2/privkey.pem
+            rm -r /etc/letsencrypt/live/$2/
             apply_cert $1 $2
         else 
             info "使用已有证书"
@@ -300,7 +300,7 @@ stop() {
 install() {
     ARCH=$(uname -m)
     if [[ -d "${workspace}" ]]; then
-        read -rp "是否重新安装tuic ? [y/[n]]" input
+        read -rp "是否重新安装tuic？(y/[n])" input
         case "$input" in
             y)  uninstall ;;
             *)  back2menu ;;
