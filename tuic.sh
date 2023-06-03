@@ -120,8 +120,8 @@ check_80(){
 cert_update() {
     cat > /etc/letsencrypt/renewal-hooks/post/tuic.sh << EOF
     #!/bin/bash
-    cat /etc/letsencrypt/live/$1/fullchain.pem > ${workspace}/fullchain.pem
-    cat /etc/letsencrypt/live/$1/privkey.pem > ${workspace}/private_key.pem
+    cat /etc/letsencrypt/live/$1*/fullchain.pem > ${workspace}/fullchain.pem
+    cat /etc/letsencrypt/live/$1*/privkey.pem > ${workspace}/private_key.pem
     systemctl restart tuic.service
 EOF
     warning "测试证书自动续费..."
@@ -146,12 +146,12 @@ apply_cert() {
 }
 
 check_cert() {
-    if [[ -r "/etc/letsencrypt/live/$2/fullchain.pem" && -r "/etc/letsencrypt/live/$2/privkey.pem" ]]; then
+    if [[ -r "/etc/letsencrypt/live/$2*/fullchain.pem" && -r "/etc/letsencrypt/live/$2*/privkey.pem" ]]; then
         read -rp "是否撤销并删除已有证书？(y/[n])：" del_cert
         if [[ ${del_cert} == [yY] ]]; then
             warning "正在撤销$2的证书..."
             certbot revoke --cert-name $2 --delete-after-revoke
-            rm -r /etc/letsencrypt/live/$2/
+            rm -r /etc/letsencrypt/live/$2*/
             apply_cert $1 $2
         else 
             info "使用已有证书"
