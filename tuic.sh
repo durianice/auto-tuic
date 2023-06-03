@@ -253,7 +253,7 @@ EOF
         fingerprint=$(echo "$str" | cut -d '=' -f 2)
         if [[ -n ${fingerprint} ]]; then
             warning "已添加证书指纹"
-            echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, server-cert-fingerprint=${fingerprint}, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
+            echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, server-cert-fingerprint-sha256=${fingerprint}, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
         else 
             error "证书指纹生成失败，请检查证书有效性" && exit 1
         fi
