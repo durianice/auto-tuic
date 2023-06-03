@@ -88,24 +88,54 @@ brefore_install() {
     fi
 }
 
+check_80(){
+    # Fork from https://github.com/Misaka-blog/acme-script/blob/main/acme.sh
+    # thanks
+    if [[ -z $(type -P lsof) ]]; then
+        if [[ ! $SYSTEM == "CentOS" ]]; then
+            ${PACKAGE_UPDATE[int]}
+        fi
+        ${PACKAGE_INSTALL[int]} lsof
+    fi
+    
+    warning "正在检测80端口是否占用..."
+    sleep 1
+    
+    if [[  $(lsof -i:"80" | grep -i -c "listen") -eq 0 ]]; then
+        success "检测到目前80端口未被占用"
+        sleep 1
+    else
+        error "检测到目前80端口被其他程序被占用，以下为占用程序信息"
+        lsof -i:"80"
+        read -rp "如需结束占用进程请按Y，按其他键则退出 [Y/N]: " yn
+        if [[ $yn =~ "Y"|"y" ]]; then
+            lsof -i:"80" | awk '{print $2}' | grep -v "PID" | xargs kill -9
+            sleep 1
+        else
+            exit 1
+        fi
+    fi
+}
+
 cert_update() {
     cat > /etc/letsencrypt/renewal-hooks/post/tuic.sh << EOF
     #!/bin/bash
-    cat /etc/letsencrypt/live/$1/fullchain.pem > "${workspace}/fullchain.pem"
-    cat /etc/letsencrypt/live/$1/privkey.pem > "${workspace}/private_key.pem" 
+    cat /etc/letsencrypt/live/$1/fullchain.pem > ${workspace}/fullchain.pem
+    cat /etc/letsencrypt/live/$1/privkey.pem > ${workspace}/private_key.pem
     systemctl restart tuic.service
 EOF
+    warning "测试证书自动续费..."
     chmod +x /etc/letsencrypt/renewal-hooks/post/tuic.sh
-    systemctl daemon-reload
-    certbot renew --cert-name $1 --dry-run
+    bash /etc/letsencrypt/renewal-hooks/post/tuic.sh
+    if crontab -l | grep -q "$1"; then
+        warning "已存在$1的证书自动续期任务"
+    else
+        crontab -l > conf_temp && echo "0 0 * */2 * certbot renew --cert-name $1 --dry-run" >> conf_temp && crontab conf_temp && rm -f conf_temp
+        warning "已添加$1的证书自动续期任务"
+    fi
 }
 
 apply_cert() {
-    if [[ -e "${workspace}/fullchain.pem" || -e "${workspace}/private_key.pem" ]]; then
-        warning "已有证书，跳过申请"
-        return 0
-    fi
-    warning "请确保域名正确解析到此主机"
     warning "正在为您申请证书，您稍等..."
     certbot certonly \
     --standalone \
@@ -113,14 +143,23 @@ apply_cert() {
     --no-eff-email \
     --email $1 \
     -d $2
+}
+
+check_cert() {
     if [[ -r "/etc/letsencrypt/live/$2/fullchain.pem" && -r "/etc/letsencrypt/live/$2/privkey.pem" ]]; then
-        cat /etc/letsencrypt/live/$2/fullchain.pem > "${workspace}/fullchain.pem"
-        cat /etc/letsencrypt/live/$2/privkey.pem > "${workspace}/private_key.pem" 
-        success "证书申请成功"
-        cert_update $2
+        read -rp "是否撤销并删除已有证书？(y/[n])：" del_cert
+        if [[ ${del_cert} == [yY] ]]; then
+            warning "正在撤销$2的证书..."
+            certbot revoke --cert-name $2 --delete-after-revoke
+            rm /etc/letsencrypt/live/$2/fullchain.pem /etc/letsencrypt/live/$2/privkey.pem
+            apply_cert $1 $2
+        else 
+            info "使用已有证书"
+        fi
     else
-        error "证书申请失败" && exit 1
+        apply_cert $1 $2
     fi
+    cert_update $2
 }
 
 create_systemd() {
@@ -142,6 +181,7 @@ create_systemd() {
     WantedBy=multi-user.target
 EOF
     success "已添加${service}"
+    systemctl daemon-reload
 }
 
 generate_random_password() {
@@ -171,7 +211,8 @@ create_conf() {
     if [[ -z ${domain_input} ]]; then
         error "域名不能为空" && exit 1
     fi
-    apply_cert $email_input $domain_input
+    check_80
+    check_cert $email_input $domain_input
     read -rp "请为tuic分配端口(留空随机分配)：" port_input
     if [[ -z ${port_input} ]]; then
         port_input=$(find_unused_port)
@@ -201,9 +242,7 @@ create_conf() {
     }
 EOF
     read -rp "是否启用证书指纹？(y/[n])：" not_fingerprint
-    if [[ -z ${not_fingerprint} ]]; then
-        echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, skip-cert-verify=true, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
-    else
+    if [[ ${not_fingerprint} == [yY] ]]; then
         str=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in "${workspace}/fullchain.pem")
         fingerprint=$(echo "$str" | cut -d '=' -f 2)
         if [[ -n ${fingerprint} ]]; then
@@ -212,11 +251,18 @@ EOF
         else 
             error "证书指纹生成失败，请检查证书有效性" && exit 1
         fi
+    else
+        echo -e "TUIC_V5 = tuic, $(curl -s ipinfo.io/ip) , ${port_input}, skip-cert-verify=true, sni=${domain_input}, uuid=${uuid}, alpn=h3, password=${password}, version=5" > client.txt
     fi
 }
 
 uninstall() {
-    systemctl stop tuic && systemctl disable --now tuic.service && rm -rf ${workspace} && rm -rf ${service}
+    if [[ ! -e "$service" ]]; then
+        error "tuic未安装" && back2menu
+    fi
+    systemctl stop tuic && \
+    systemctl disable --now tuic.service && \
+    rm -rf ${workspace} && rm -rf ${service} 
     error "已停止并卸载tuic"
 }
 
@@ -252,7 +298,6 @@ stop() {
 }
 
 install() {
-    brefore_install
     ARCH=$(uname -m)
     if [[ -d "${workspace}" ]]; then
         read -rp "是否重新安装tuic ? [y/[n]]" input
@@ -260,6 +305,8 @@ install() {
             y)  uninstall ;;
             *)  back2menu ;;
         esac
+    else
+        brefore_install
     fi
     mkdir ${workspace}
     cd ${workspace}
