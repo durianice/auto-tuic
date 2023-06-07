@@ -305,7 +305,7 @@ stop() {
 
 install() {
     ARCH=$(uname -m)
-    if [[ -d "${workspace}" ]]; then
+    if [[ -e "$service" ]]; then
         read -rp "是否重新安装tuic？(y/[n])" input
         case "$input" in
             y)  uninstall ;;
