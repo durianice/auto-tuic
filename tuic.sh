@@ -318,7 +318,7 @@ install() {
     cd ${workspace}
     info "当前工作目录：$(pwd)"
     info "下载tuic文件"
-    URL="https://github.com/EAimTY/tuic/releases/download/tuic-server-1.0.0-beta0/tuic-server-1.0.0-rc0-$ARCH-unknown-linux-gnu"
+    URL="https://github.com/EAimTY/tuic/releases/download/tuic-server-1.0.0-rc0/tuic-server-1.0.0-rc0-$ARCH-unknown-linux-gnu"
     wget -N --no-check-certificate $URL -O tuic-server
     chmod +x tuic-server
     create_systemd
