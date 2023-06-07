@@ -76,7 +76,7 @@ brefore_install() {
     if [[ ! $SYSTEM == "CentOS" ]]; then
         ${PACKAGE_UPDATE[int]}
     fi
-    ${PACKAGE_INSTALL[int]} curl wget sudo socat openssl certbot
+    ${PACKAGE_INSTALL[int]} curl wget sudo socat openssl certbot cronie
     if [[ $SYSTEM == "CentOS" ]]; then
         ${PACKAGE_INSTALL[int]} cronie
         systemctl start crond
@@ -318,7 +318,7 @@ install() {
     cd ${workspace}
     info "当前工作目录：$(pwd)"
     info "下载tuic文件"
-    URL="https://github.com/EAimTY/tuic/releases/download/tuic-server-1.0.0-beta0/tuic-server-1.0.0-beta0-$ARCH-unknown-linux-gnu"
+    URL="https://github.com/EAimTY/tuic/releases/download/tuic-server-1.0.0-beta0/tuic-server-1.0.0-rc0-$ARCH-unknown-linux-gnu"
     wget -N --no-check-certificate $URL -O tuic-server
     chmod +x tuic-server
     create_systemd
