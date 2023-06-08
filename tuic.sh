@@ -332,7 +332,9 @@ install() {
     cd ${workspace}
     info "当前工作目录：$(pwd)"
     info "下载tuic文件"
-    URL="https://github.com/EAimTY/tuic/releases/download/tuic-server-1.0.0-rc0/tuic-server-1.0.0-rc0-$ARCH-unknown-linux-gnu"
+    REPO_URL="https://api.github.com/repos/EAimTY/tuic/releases/latest"
+    TAG=$(wget -qO- -t1 -T2 ${REPO_URL} | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g'
+    URL="https://github.com/EAimTY/tuic/releases/download/$TAG/$TAG-$ARCH-unknown-linux-gnu"
     wget -N --no-check-certificate $URL -O tuic-server
     chmod +x tuic-server
     create_systemd
