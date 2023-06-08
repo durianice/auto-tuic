@@ -72,11 +72,12 @@ back2menu() {
 }
 
 brefore_install() {
-    info "更新并安装系统所需软件"
     if [[ ! $SYSTEM == "CentOS" ]]; then
+        info "更新系统软件源"
         ${PACKAGE_UPDATE[int]}
     fi
-    ${PACKAGE_INSTALL[int]} curl wget sudo socat openssl certbot cronie
+    info "安装所需软件"
+    ${PACKAGE_INSTALL[int]} curl wget sudo socat openssl certbot
     if [[ $SYSTEM == "CentOS" ]]; then
         ${PACKAGE_INSTALL[int]} cronie
         systemctl start crond
@@ -209,24 +210,24 @@ find_unused_port() {
 
 
 create_conf() {
-    read -rp "请输入注册邮箱(必填): " email_input
+    read -rp "请输入注册邮箱: " email_input
     if [[ -z $email_input ]]; then
         error "邮箱不能为空" && exit 1
     fi
-    read -rp "请输入域名(必填)：" domain_input
+    read -rp "请输入域名：" domain_input
     if [[ -z ${domain_input} ]]; then
         error "域名不能为空" && exit 1
     fi
     
-    read -rp "是否自定义证书路径？(y/[n])" is_self_cert
+    read -rp "是否自定义证书路径(没有证书的话直接回车)？(y/[n])" is_self_cert
     if [[ ${is_self_cert} == [yY] ]]; then
-        read -rp "请输入certificate完整路径：" cert_full_path
+        read -rp "请输入certificate完整路径(/xx/xx.crt)：" cert_full_path
         if [[ -e ${cert_full_path} ]]; then
             cat ${cert_full_path} > ${workspace}/fullchain.pem
         else
             error "证书文件${cert_full_path}不存在" && exit 1
         fi
-        read -rp "请输入private_key完整路径：" key_full_path
+        read -rp "请输入private_key完整路径(/xx/xx.key)：" key_full_path
         if [[ -e ${key_full_path} ]]; then
             cat ${key_full_path} > ${workspace}/private_key.pem
         else
